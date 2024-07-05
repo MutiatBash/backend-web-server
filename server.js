@@ -1,16 +1,18 @@
-
+require("dotenv").config();
 const express = require("express");
 const axios = require("axios");
 const app = express();
 const port = process.env.PORT || 3000;
-require("dotenv").config();
 
 app.get("/api/hello", async (req, res) => {
 	const visitorName = req.query.visitor_name || "Visitor";
-	const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-    // const clientIp = "8.8.8.8";
 
 	try {
+		const ipifyResponse = await axios.get(
+			"https://api64.ipify.org?format=json"
+		);
+		const clientIp = ipifyResponse.data.ip;
+
 		const locationResponse = await axios.get(
 			`http://ip-api.com/json/${clientIp}`
 		);
@@ -18,10 +20,13 @@ app.get("/api/hello", async (req, res) => {
 
 		if (locationResponse.data.status === "fail") {
 			console.error("Failed to fetch location data");
+			return res
+				.status(500)
+				.json({ error: "Failed to fetch location data" });
 		}
 
 		const { city, lat, lon } = locationResponse.data;
-        const apiKey = process.env.API_KEY;
+		const apiKey = process.env.API_KEY;
 
 		const weatherResponse = await axios.get(
 			"https://api.openweathermap.org/data/2.5/weather",
@@ -43,7 +48,7 @@ app.get("/api/hello", async (req, res) => {
 			greeting: greeting,
 		});
 	} catch (error) {
-		console.error("An eror occurred:", error.message);
+		console.error("An error occurred:", error.message);
 		res.status(500).json({
 			error: "Unable to fetch data",
 		});
