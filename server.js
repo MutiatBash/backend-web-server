@@ -41,7 +41,6 @@ app.get("/api/hello", async (req, res) => {
 		);
 		const temperature = weatherResponse.data.main.temp;
 		const greeting = `Hello, ${visitorName}!, the temperature is ${temperature} degrees Celsius in ${city}`;
-        console.log(`Using OpenWeatherMap API Key: ${apiKey}`);
 
 		res.json({
 			client_ip: clientIp,
