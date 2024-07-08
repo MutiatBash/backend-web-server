@@ -4,51 +4,24 @@ const axios = require("axios");
 const app = express();
 const port = process.env.PORT || 3000;
 
+// Route to handle /api/hello endpoint
 app.get("/api/hello", async (req, res) => {
 	const visitorName = req.query.visitor_name || "Visitor";
 
-	// Try to get the client's IP address from the headers
-	let clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-
-	// If the IP contains multiple addresses, take the first one
-	if (clientIp && clientIp.includes(",")) {
-		clientIp = clientIp.split(",")[0];
-	}
-
-	// Log the detected IP for debugging purposes
-	console.log(`Detected client IP from headers: ${clientIp}`);
-
-	// If no client IP is found, fallback to ipify
-	if (!clientIp || clientIp === "::1" || clientIp === "127.0.0.1") {
-		try {
-			const ipifyResponse = await axios.get(
-				"https://api64.ipify.org?format=json"
-			);
-			clientIp = ipifyResponse.data.ip;
-			console.log(`Fallback IP from ipify: ${clientIp}`);
-		} catch (ipifyError) {
-			console.error("Failed to fetch IP from ipify:", ipifyError.message);
-			return res
-				.status(500)
-				.json({ error: "Failed to determine client IP" });
-		}
-	}
-
 	try {
-		const locationResponse = await axios.get(
-			`http://ip-api.com/json/${clientIp}`
-		);
-		console.log("Location response:", locationResponse.data);
+		// Fetch client's IP address and location data using ipinfo.io
+		const ipinfoResponse = await axios.get("https://ipinfo.io/json", {
+			headers: {
+				Authorization: `Bearer ${process.env.IP_TOKEN}`,
+			},
+		});
+		const { ip, city, loc } = ipinfoResponse.data;
 
-		if (locationResponse.data.status === "fail") {
-			return res
-				.status(500)
-				.json({ error: "Failed to fetch location data" });
-		}
+		// Extract latitude and longitude from location data
+		const [lat, lon] = loc.split(",");
 
-		const { city, lat, lon } = locationResponse.data;
-		const apiKey = process.env.API_KEY;
-
+		// Fetch weather data using latitude and longitude
+		const apiKey = process.env.OPENWEATHERMAP_API_KEY;
 		const weatherResponse = await axios.get(
 			"https://api.openweathermap.org/data/2.5/weather",
 			{
@@ -61,11 +34,13 @@ app.get("/api/hello", async (req, res) => {
 			}
 		);
 
+		// Extract temperature from weather data
 		const temperature = weatherResponse.data.main.temp;
 		const greeting = `Hello, ${visitorName}!, the temperature is ${temperature} degrees Celsius in ${city}`;
 
+		// Send JSON response with client IP, location, and greeting
 		res.json({
-			client_ip: clientIp,
+			client_ip: ip,
 			location: city,
 			greeting: greeting,
 		});
@@ -77,6 +52,7 @@ app.get("/api/hello", async (req, res) => {
 	}
 });
 
+// Start the server on specified port
 app.listen(port, () => {
 	console.log(`Server is running on port ${port}`);
 });
