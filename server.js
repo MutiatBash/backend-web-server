@@ -7,19 +7,40 @@ const port = process.env.PORT || 3000;
 app.get("/api/hello", async (req, res) => {
 	const visitorName = req.query.visitor_name || "Visitor";
 
-	try {
-		const ipifyResponse = await axios.get(
-			"https://api64.ipify.org?format=json"
-		);
-		const clientIp = ipifyResponse.data.ip;
+	// Try to get the client's IP address from the headers
+	let clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
+	// If the IP contains multiple addresses, take the first one
+	if (clientIp && clientIp.includes(",")) {
+		clientIp = clientIp.split(",")[0];
+	}
+
+	// Log the detected IP for debugging purposes
+	console.log(`Detected client IP from headers: ${clientIp}`);
+
+	// If no client IP is found, fallback to ipify
+	if (!clientIp || clientIp === "::1" || clientIp === "127.0.0.1") {
+		try {
+			const ipifyResponse = await axios.get(
+				"https://api64.ipify.org?format=json"
+			);
+			clientIp = ipifyResponse.data.ip;
+			console.log(`Fallback IP from ipify: ${clientIp}`);
+		} catch (ipifyError) {
+			console.error("Failed to fetch IP from ipify:", ipifyError.message);
+			return res
+				.status(500)
+				.json({ error: "Failed to determine client IP" });
+		}
+	}
+
+	try {
 		const locationResponse = await axios.get(
 			`http://ip-api.com/json/${clientIp}`
 		);
 		console.log("Location response:", locationResponse.data);
 
 		if (locationResponse.data.status === "fail") {
-			console.error("Failed to fetch location data");
 			return res
 				.status(500)
 				.json({ error: "Failed to fetch location data" });
@@ -39,6 +60,7 @@ app.get("/api/hello", async (req, res) => {
 				},
 			}
 		);
+
 		const temperature = weatherResponse.data.main.temp;
 		const greeting = `Hello, ${visitorName}!, the temperature is ${temperature} degrees Celsius in ${city}`;
 
